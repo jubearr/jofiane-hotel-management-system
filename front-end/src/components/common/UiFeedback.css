@@ -1,0 +1,30 @@
+.field-invalid {
+  border-color: #c84c45 !important;
+  box-shadow: 0 0 0 3px rgba(200, 76, 69, 0.12) !important;
+}
+
+.field-valid {
+  border-color: #6c9b71 !important;
+}
+
+.field-error-text {
+  display: block;
+  margin-top: 5px;
+  color: var(--field-error, #ac332d);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.dark-mode, [data-theme="dark"] { --field-error: #ffaaa1; }
+.field-helper-text { display: block; margin-top: 5px; color: var(--text-muted); font-size: 12px; line-height: 1.4; }
+.password-wrapper:has(.field-error-text), .password-wrapper:has(.field-helper-text) { flex-wrap: wrap; }
+.password-wrapper > .field-error-text, .password-wrapper > .field-helper-text { flex-basis: 100%; }
+form button:disabled { cursor: not-allowed; opacity: .48; transform: none !important; }
+
+@media (max-width: 700px) {
+  .ui-page-skeleton__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-skeleton::after { animation: none; }
+}

@@ -1,0 +1,5 @@
+# Never index local environment files; they may contain credentials.
+.env
+.env.*
+**/.env
+**/.env.*

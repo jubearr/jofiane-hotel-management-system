@@ -1,0 +1,16 @@
+node_modules
+
+# Local environment files may contain credentials.
+.env
+.env.*
+**/.env
+**/.env.*
+
+# Keep safe templates in version control.
+!.env.sample
+!**/.env.sample
+
+.DS_Store
+
+# Internal docs — not committed.
+ROLE_PERMISSIONS.md

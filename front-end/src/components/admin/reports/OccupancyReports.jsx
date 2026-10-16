@@ -1,0 +1,198 @@
+import { Select } from '../../common/FormControls';
+import React, { useState, useEffect } from 'react';
+import { API_BASE } from '../../../utils/api';
+import { PageSkeleton } from '../../common/SkeletonLoader';
+import { exportToCSV } from '../../../utils/exportUtils';
+
+function OccupancyReports() {
+  const [isLoading, setIsLoading] = useState(true);
+  const [period, setPeriod] = useState('monthly');
+  const [data, setData] = useState(null);
+
+  useEffect(() => { fetchData(); }, [period]);
+
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/reports/occupancy`);
+      if (!res.ok) throw new Error(`Server error: ${res.status}`);
+      setData(await res.json());
+    } catch (err) {
+      console.error('Failed to fetch occupancy data:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (isLoading || !data) {
+    return (<section className="admin-tab-content active"><PageSkeleton rows={6} /></section>);
+  }
+
+  const { kpis, trend, byRoomType, byFloor, forecast } = data;
+  const maxForecast = Math.max(...forecast.map(f => Math.max(f.confirmed, f.projected)));
+
+  const handleExportCSV = () => {
+    if (!data) return;
+    const rows = [
+      ...(trend || []).map(t => ({
+        section: 'Occupancy Trend',
+        segment: t.label,
+        rate: `${t.rate}%`,
+        occupied: Math.round((t.rate / 100) * (kpis.totalRooms || 0)),
+        total: kpis.totalRooms,
+      })),
+      ...(byRoomType || []).map(r => ({
+        section: 'By Room Type',
+        segment: r.type,
+        rate: `${r.rate}%`,
+        occupied: r.occupied,
+        total: r.total,
+      })),
+      ...(byFloor || []).map(f => ({
+        section: 'By Floor',
+        segment: f.floor,
+        rate: `${f.rate}%`,
+        occupied: f.occupied,
+        total: f.total,
+      })),
+      ...(forecast || []).map(fc => ({
+        section: '7-Day Forecast',
+        segment: fc.day,
+        rate: `${fc.projected}% (Projected)`,
+        occupied: fc.confirmed,
+        total: fc.projected,
+      })),
+    ];
+
+    const columns = [
+      { header: 'Report Section', key: 'section' },
+      { header: 'Period / Segment', key: 'segment' },
+      { header: 'Occupancy Rate', key: 'rate' },
+      { header: 'Occupied Units', key: 'occupied' },
+      { header: 'Total Capacity', key: 'total' },
+    ];
+
+    const todayStr = new Date().toISOString().slice(0, 10);
+    exportToCSV(rows, columns, `jofiane-occupancy-report-${period}-${todayStr}`);
+  };
+
+  return (
+    <section className="admin-tab-content active">
+      <div className="page-header">
+        <div className="left">
+          <h2 style={{ fontSize: '28px', fontWeight: '700' }}>Occupancy Reports</h2>
+          <p>Room fill rate trends and forecasting</p>
+        </div>
+        <div className="right">
+        </div>
+      </div>
+
+      {/* KPIs */}
+      <div className="panel" style={{ padding: '20px 28px', marginBottom: '22px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '28px', flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ fontSize: '28px', fontWeight: '700', color: 'var(--gold)' }}>{kpis.avgOccupancy}%</div>
+            <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: '600', textTransform: 'uppercase' }}>Avg Occupancy</div>
+          </div>
+          <div style={{ width: '1px', height: '40px', background: 'var(--border-light)' }}></div>
+          <div><div style={{ fontSize: '18px', fontWeight: '700' }}>{kpis.totalRooms}</div><div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Total Rooms</div></div>
+          <div><div style={{ fontSize: '18px', fontWeight: '700' }}>{kpis.alos}</div><div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Avg Length of Stay</div></div>
+          <div><div style={{ fontSize: '18px', fontWeight: '700', color: 'var(--status-vac)' }}>{kpis.peakDay}</div><div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Peak Day</div></div>
+          <div><div style={{ fontSize: '18px', fontWeight: '700', color: 'var(--status-occ)' }}>{kpis.lowDay}</div><div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Low Day</div></div>
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Select className="floor-dropdown" value={period} onChange={(e) => setPeriod(e.target.value)}>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+              <option value="quarterly">Quarterly</option>
+            </Select>
+            <button className="btn btn-sm btn-outline-gold" onClick={handleExportCSV}>Export CSV</button>
+          </div>
+        </div>
+      </div>
+
+      {/* ROW 1: Trend + By Room Type */}
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '22px', marginBottom: '22px' }}>
+        {/* Occupancy Trend */}
+        <div className="panel" style={{ padding: '24px 28px' }}>
+          <h3 style={{ fontSize: '14px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '20px' }}>Occupancy Trend</h3>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '16px', height: '140px', paddingBottom: '28px', borderBottom: '1px solid var(--border-light)', position: 'relative' }}>
+            {trend.map((item, i) => (
+              <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
+                <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '6px' }}>{item.rate}%</span>
+                <div style={{ width: '100%', maxWidth: '40px', height: `${(item.rate / 100) * 110}px`, background: 'linear-gradient(180deg, var(--gold) 0%, #4a3728 100%)', borderRadius: '4px 4px 0 0' }}></div>
+                <span style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '8px', position: 'absolute', bottom: '6px' }}>{item.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* By Room Type */}
+        <div className="panel" style={{ padding: '24px 28px' }}>
+          <h3 style={{ fontSize: '14px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '20px' }}>By Room Type</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            {byRoomType.map((item, i) => (
+              <div key={i}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: '600' }}>{item.type}</span>
+                  <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--gold-dark)' }}>{item.rate}%</span>
+                </div>
+                <div style={{ height: '6px', background: 'var(--bg-input)', borderRadius: '3px', overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${item.rate}%`, background: 'var(--gold)', borderRadius: '3px' }}></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ROW 2: By Floor + Forecast */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '22px' }}>
+        {/* By Floor */}
+        <div className="panel" style={{ padding: '24px 28px' }}>
+          <h3 style={{ fontSize: '14px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '20px' }}>By Floor</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {byFloor.map((item, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{ fontSize: '12px', fontWeight: '600', width: '60px', color: 'var(--text-muted)' }}>{item.floor}</span>
+                <div style={{ flex: 1, height: '8px', background: 'var(--bg-input)', borderRadius: '4px', overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${item.rate}%`, background: i === byFloor.length - 1 ? 'var(--gold)' : '#4a3728', borderRadius: '4px', opacity: 0.4 + (i * 0.2) }}></div>
+                </div>
+                <span style={{ fontSize: '12px', fontWeight: '700', width: '40px', textAlign: 'right' }}>{item.rate}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Forecast */}
+        <div className="panel" style={{ padding: '24px 28px' }}>
+          <div className="panel-header" style={{ marginBottom: '16px' }}>
+            <h3 style={{ fontSize: '14px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em' }}>7-Day Forecast</h3>
+            <div style={{ display: 'flex', gap: '14px', fontSize: '10px' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: '10px', height: '4px', borderRadius: '2px', background: 'var(--gold)' }}></span> Confirmed</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: '10px', height: '4px', borderRadius: '2px', background: '#4a3728', opacity: 0.4 }}></span> Projected</span>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '12px', height: '140px', paddingBottom: '28px', borderBottom: '1px solid var(--border-light)', position: 'relative' }}>
+            {forecast.map((item, i) => (
+              <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%', gap: '3px' }}>
+                {/* Projected bar (behind) */}
+                <div style={{ width: '100%', display: 'flex', gap: '3px', alignItems: 'flex-end', justifyContent: 'center' }}>
+                  <div style={{ width: '12px', height: `${(item.confirmed / maxForecast) * 110}px`, background: 'var(--gold)', borderRadius: '3px 3px 0 0' }}></div>
+                  <div style={{ width: '12px', height: `${(item.projected / maxForecast) * 110}px`, background: '#4a3728', opacity: 0.3, borderRadius: '3px 3px 0 0' }}></div>
+                </div>
+                <span style={{ fontSize: '9px', color: 'var(--text-muted)', position: 'absolute', bottom: '6px' }}>{item.date}</span>
+              </div>
+            ))}
+          </div>
+          {/* Capacity line label */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '12px', fontSize: '11px', color: 'var(--text-muted)' }}>
+            <span>Capacity: {kpis.totalRooms} rooms</span>
+            <span>Dates shown are confirmed bookings vs projected demand</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export default OccupancyReports;
